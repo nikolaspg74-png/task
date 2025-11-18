@@ -22,7 +22,8 @@ const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<
       ...options, 
       headers,
       mode: 'cors',
-      credentials: 'include'
+      // credentials: 'same-origin',
+      // credentials: 'include'
     });
 
     if (!response.ok) {
