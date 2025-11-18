@@ -9,13 +9,13 @@ export const setAuthToken = (token: string | null) => {
 
 const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<T> => {
   const url = `${API_URL}${endpoint}`;
-  console.log(`Fazendo requisição para: ${url}`); // Debug
+  console.log(`Fazendo requisição para: ${url}`);
   
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
   
-  // 🔥 ADICIONE ESTES HEADERS PARA BYPASS DO TUNNEL
-  if (API_URL.includes('loca.lt')) {
+  // 🔥 HEADERS PARA BYPASS DE TUNNELS
+  if (API_URL.includes('loca.lt') || API_URL.includes('ngrok')) {
     headers.set('bypass-tunnel-reminder', 'true');
     headers.set('User-Agent', 'TaskSparkle-App/1.0');
   }
@@ -31,26 +31,43 @@ const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<
       mode: 'cors',
     });
 
+    const responseText = await response.text();
+    
+    // 🔥 DETECTA SE É UMA PÁGINA HTML DE ERRO DO TUNNEL
+    if (responseText.trim().startsWith('<!DOCTYPE') || 
+        responseText.includes('ngrok') ||
+        responseText.includes('Tunnel website ahead!') ||
+        responseText.includes('localtunnel') ||
+        responseText.includes('This site can’t be reached')) {
+      
+      console.error('Tunnel bloqueando requisição - Página HTML detectada');
+      throw new Error('Tunnel bloqueando acesso. Verifique se: 1) Backend está rodando, 2) Tunnel aponta para porta correta, 3) Acesse a URL no navegador primeiro.');
+    }
+
     if (!response.ok) {
-      const errorText = await response.text();
-      
-      // 🔥 DETECTA SE É A PÁGINA DO TUNNEL
-      if (errorText.includes('Tunnel website ahead!') || errorText.includes('localtunnel')) {
-        throw new Error('Tunnel bloqueando requisição. Acesse https://task.loca.lt no navegador e digite o IP: 177.86.70.46');
-      }
-      
-      console.error(`Erro ${response.status}: ${errorText}`);
-      throw new Error(errorText || `Erro ${response.status}: ${response.statusText}`);
+      console.error(`Erro ${response.status}: ${responseText}`);
+      throw new Error(responseText || `Erro ${response.status}: ${response.statusText}`);
     }
     
     if (response.status === 204) {
       return null as T;
     }
 
-    return await response.json();
+    // Parse do JSON apenas se não for HTML
+    return JSON.parse(responseText) as T;
   } catch (error) {
     console.error(`Erro de conexão em ${url}:`, error);
-    throw new Error(`Não foi possível conectar ao servidor. Verifique se o backend está rodando.`);
+    
+    // Melhora a mensagem de erro baseada no tipo de erro
+    if (error instanceof SyntaxError) {
+      throw new Error('Servidor retornou HTML em vez de JSON. Verifique se o backend está rodando corretamente.');
+    }
+    
+    if (error instanceof TypeError) {
+      throw new Error('Não foi possível conectar ao servidor. Verifique: 1) Backend está rodando, 2) URL está correta, 3) Tunnel está ativo.');
+    }
+    
+    throw error;
   }
 };
 
@@ -87,7 +104,6 @@ export const getRecompensas = (): Promise<Recompensa[]> => {
   return request('/recompensas');
 };
 
-// Nova função para obter pontuação
 export const getScore = (filho_id: number): Promise<Pontuacao> => {
   return request(`/pontuacao/${filho_id}`);
 };
@@ -98,7 +114,6 @@ export const pontuar = (filho_id: number, valor: number, descricao?: string): Pr
     valor 
   };
   
-  // Adiciona descricao apenas se foi fornecida
   if (descricao) {
     body.descricao = descricao;
   }
@@ -120,7 +135,6 @@ export const resgatarRecompensa = (id: number, filho_id: number): Promise<{ mess
   });
 };
 
-// Criar nova tarefa
 export const createTarefa = (nome: string, valor: number): Promise<{ message: string, tarefa: Tarefa }> => {
   return request('/tarefas', {
     method: 'POST',
@@ -128,7 +142,6 @@ export const createTarefa = (nome: string, valor: number): Promise<{ message: st
   });
 };
 
-// Criar nova recompensa
 export const createRecompensa = (nome: string, custo: number): Promise<{ message: string, recompensa: Recompensa }> => {
   return request('/recompensas', {
     method: 'POST',
@@ -136,14 +149,12 @@ export const createRecompensa = (nome: string, custo: number): Promise<{ message
   });
 };
 
-// Deletar tarefa
 export const deleteTarefa = (id: number): Promise<{ message: string }> => {
   return request(`/tarefas/${id}`, {
     method: 'DELETE',
   });
 };
 
-// Deletar recompensa
 export const deleteRecompensa = (id: number): Promise<{ message: string }> => {
   return request(`/recompensas/${id}`, {
     method: 'DELETE',
