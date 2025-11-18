@@ -13,6 +13,13 @@ const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<
   
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
+  
+  // 🔥 ADICIONE ESTES HEADERS PARA BYPASS DO TUNNEL
+  if (API_URL.includes('loca.lt')) {
+    headers.set('bypass-tunnel-reminder', 'true');
+    headers.set('User-Agent', 'TaskSparkle-App/1.0');
+  }
+  
   if (authToken) {
     headers.set('Authorization', `Bearer ${authToken}`);
   }
@@ -22,12 +29,16 @@ const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<
       ...options, 
       headers,
       mode: 'cors',
-      // credentials: 'same-origin',
-      // credentials: 'include'
     });
 
     if (!response.ok) {
       const errorText = await response.text();
+      
+      // 🔥 DETECTA SE É A PÁGINA DO TUNNEL
+      if (errorText.includes('Tunnel website ahead!') || errorText.includes('localtunnel')) {
+        throw new Error('Tunnel bloqueando requisição. Acesse https://task.loca.lt no navegador e digite o IP: 177.86.70.46');
+      }
+      
       console.error(`Erro ${response.status}: ${errorText}`);
       throw new Error(errorText || `Erro ${response.status}: ${response.statusText}`);
     }
