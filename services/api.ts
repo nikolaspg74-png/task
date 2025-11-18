@@ -9,15 +9,15 @@ export const setAuthToken = (token: string | null) => {
 
 const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<T> => {
   const url = `${API_URL}${endpoint}`;
-  console.log(`Fazendo requisição para: ${url}`);
+  console.log(`🌐 Fazendo requisição para: ${url}`);
   
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
   
-  // 🔥 HEADERS PARA BYPASS DE TUNNELS
-  if (API_URL.includes('loca.lt') || API_URL.includes('ngrok')) {
+  // Headers para bypass de tunnels
+  if (API_URL.includes('ngrok') || API_URL.includes('loca.lt')) {
     headers.set('bypass-tunnel-reminder', 'true');
-    headers.set('User-Agent', 'TaskSparkle-App/1.0');
+    headers.set('User-Agent', 'TaskSparkle-API/1.0');
   }
   
   if (authToken) {
@@ -31,46 +31,50 @@ const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<
       mode: 'cors',
     });
 
+    // 🔥 PRIMEIRO verifica se é HTML
     const responseText = await response.text();
     
-    // 🔥 DETECTA SE É UMA PÁGINA HTML DE ERRO DO TUNNEL
     if (responseText.trim().startsWith('<!DOCTYPE') || 
         responseText.includes('ngrok') ||
-        responseText.includes('Tunnel website ahead!') ||
-        responseText.includes('localtunnel') ||
+        responseText.includes('Tunnel') ||
+        responseText.includes('502 Bad Gateway') ||
         responseText.includes('This site can’t be reached')) {
       
-      console.error('Tunnel bloqueando requisição - Página HTML detectada');
-      throw new Error('Tunnel bloqueando acesso. Verifique se: 1) Backend está rodando, 2) Tunnel aponta para porta correta, 3) Acesse a URL no navegador primeiro.');
+      console.error('❌ Tunnel retornando página HTML:', responseText.substring(0, 500));
+      throw new Error(`BACKEND NÃO CONECTADO: O servidor não está respondendo. Verifique se:
+1. Backend está rodando: node server.js
+2. Ngrok está na porta 3000: ngrok http 3000
+3. Acesse manualmente: ${url}`);
     }
 
     if (!response.ok) {
-      console.error(`Erro ${response.status}: ${responseText}`);
-      throw new Error(responseText || `Erro ${response.status}: ${response.statusText}`);
+      console.error(`❌ Erro HTTP ${response.status}:`, responseText);
+      throw new Error(responseText || `Erro ${response.status}`);
     }
     
     if (response.status === 204) {
       return null as T;
     }
 
-    // Parse do JSON apenas se não for HTML
-    return JSON.parse(responseText) as T;
-  } catch (error) {
-    console.error(`Erro de conexão em ${url}:`, error);
-    
-    // Melhora a mensagem de erro baseada no tipo de erro
-    if (error instanceof SyntaxError) {
-      throw new Error('Servidor retornou HTML em vez de JSON. Verifique se o backend está rodando corretamente.');
+    // Só tenta parse JSON se não for HTML
+    try {
+      return JSON.parse(responseText) as T;
+    } catch (parseError) {
+      console.error('❌ Erro ao parsear JSON:', responseText);
+      throw new Error('Resposta inválida do servidor - não é JSON válido');
     }
+  } catch (error) {
+    console.error(`💥 Erro de conexão em ${url}:`, error);
     
-    if (error instanceof TypeError) {
-      throw new Error('Não foi possível conectar ao servidor. Verifique: 1) Backend está rodando, 2) URL está correta, 3) Tunnel está ativo.');
+    if (error instanceof SyntaxError) {
+      throw new Error('Servidor retornou HTML em vez de JSON. BACKEND PROVAVELMENTE NÃO ESTÁ RODANDO.');
     }
     
     throw error;
   }
 };
 
+// ... o resto das funções permanecem iguais
 export const registerUser = (nome: string, email: string, senha: string): Promise<{ message: string }> => {
   return request('/auth/registrar', {
     method: 'POST',
