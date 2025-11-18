@@ -18,6 +18,10 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      // 🔥 ADICIONE ESTA PARTE
+      css: {
+        postcss: './postcss.config.cjs' // Remove esta linha se não existir o arquivo
       }
     };
 });
