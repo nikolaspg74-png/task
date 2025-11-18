@@ -1,2 +1,2 @@
 
-export const API_URL = "https://points-children.instatunnel.my";
+export const API_URL = "https://task.loca.lt";
