@@ -3,4 +3,4 @@
 
 export const API_URL = window.location.hostname === 'localhost'
   ? 'http://localhost:3000'
-  : 'https://task.loca.lt';
+  : 'lettie-nonsegregative-isabella.ngrok-free.dev';
